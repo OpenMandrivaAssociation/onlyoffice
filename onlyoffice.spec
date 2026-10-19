@@ -95,12 +95,9 @@ BuildRequires:	pkgconfig(libbrotlidec)
 BuildRequires:	pkgconfig(md4c-html)
 BuildRequires:	pkgconfig(icu-uc)
 BuildRequires:	pkgconfig(icu-i18n)
+# Main libheif is shared and its .pc file is just -lheif. x265 and
+# libde265 are in restricted, so a main build must not require them.
 BuildRequires:	pkgconfig(libheif)
-# heif.pri still passes -lx265 and -lde265. The -L directories are not in
-# the tree, so the linker uses these system libraries. --as-needed then
-# drops them from NEEDED when libheif is shared.
-BuildRequires:	pkgconfig(x265)
-BuildRequires:	pkgconfig(libde265)
 BuildRequires:	pkgconfig(openssl)
 BuildRequires:	pkgconfig(libetonyek-0.1)
 BuildRequires:	pkgconfig(libodfgen-0.1)
