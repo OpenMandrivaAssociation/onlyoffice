@@ -26,7 +26,7 @@
 
 Name:		onlyoffice
 Version:	10.0.0
-Release:	2
+Release:	3
 Summary:	Office suite for documents, spreadsheets and presentations
 Group:		Office
 # Program text is AGPL-3.0-only. Non-code assets are CC-BY-SA-4.0.
@@ -331,10 +331,11 @@ qmake() {
 	# the arch tune, -O3, -g3 and -flto. Drop the mkspec -O2 or it wins.
 	# qmake does not read $LDFLAGS. LTO codegen uses the link line, so
 	# pass %%{build_ldflags} (the same flags, -Wl,-O2, --no-undefined, -flto).
-	# Full LTO of x2t is large enough that the znver1 builder kills the
-	# link. -flto=thin comes last, so it overrides -flto. Clang uses the
-	# last of those two flags.
-%ifarch znver1
+	# Full LTO of x2t is large enough that the builder kills the link
+	# (znver1, then generic x86_64). -flto=thin comes last, so it
+	# overrides -flto. Clang uses the last of those two flags.
+	# aarch64 linked x2t with full LTO for 10.0.0-1.
+%ifarch znver1 x86_64
 	lto_thin=-flto=thin
 %else
 	lto_thin=
