@@ -1,0 +1,63 @@
+diff -up core/Common/3dParty/icu/icu.pri.p1~ core/Common/3dParty/icu/icu.pri
+--- core/Common/3dParty/icu/icu.pri.p1~	2026-06-10 23:06:35.379493380 +0200
++++ core/Common/3dParty/icu/icu.pri	2026-06-10 23:06:41.629955769 +0200
+@@ -1,3 +1,4 @@
++use_bundled_icu {
+ ICU_MAJOR_VER = 74
+ 
+ core_windows {
+@@ -62,3 +63,6 @@ core_android {
+     LIBS        += $$PWD/android/build/$$CORE_BUILDS_PLATFORM_PREFIX_DST/libicuuc.a
+     LIBS        += $$PWD/android/build/$$CORE_BUILDS_PLATFORM_PREFIX_DST/libicudata.a
+ }
++} else {
++    LIBS += -licuuc -licudata
++}
+diff -up core/UnicodeConverter/UnicodeConverter.cpp.p1~ core/UnicodeConverter/UnicodeConverter.cpp
+--- core/UnicodeConverter/UnicodeConverter.cpp.p1~	2026-06-10 23:06:38.809930909 +0200
++++ core/UnicodeConverter/UnicodeConverter.cpp	2026-06-10 23:06:41.630167702 +0200
+@@ -142,7 +142,7 @@ namespace NSUnicodeConverter
+ 								char *sResCur = sResStart;
+ 								const char *sResLimit = sResCur + nOutputLen * ucnv_getMaxCharSize(conv);
+ 
+-								ucnv_fromUnicode(conv, &sResCur, sResLimit, &pOutputStart, pOutputLimit, NULL, TRUE, &status);
++								ucnv_fromUnicode(conv, &sResCur, sResLimit, &pOutputStart, pOutputLimit, NULL, true, &status);
+ 								if (U_SUCCESS(status))
+ 								{
+ 									sRes = std::string(sResStart, sResCur - sResStart);
+@@ -192,7 +192,7 @@ namespace NSUnicodeConverter
+ 						char *sResCur = sResStart;
+ 						const char *sResLimit = sResCur + sRes.size();
+ 
+-						ucnv_fromUnicode(conv, &sResCur, sResLimit, &pUCharStart, pUCharLimit, NULL, TRUE, &status);
++						ucnv_fromUnicode(conv, &sResCur, sResLimit, &pUCharStart, pUCharLimit, NULL, true, &status);
+ 						if (U_SUCCESS(status))
+ 						{
+ 							sRes.resize(sResCur - sResStart);
+@@ -235,7 +235,7 @@ namespace NSUnicodeConverter
+ 						UChar* target = targetStart;
+ 						UChar* targetLimit = target + uBufSize;
+ 
+-						ucnv_toUnicode(conv, &target, targetLimit, &source, sourceLimit, NULL, TRUE, &status);
++						ucnv_toUnicode(conv, &target, targetLimit, &source, sourceLimit, NULL, true, &status);
+ 						if (U_SUCCESS(status))
+ 						{
+ 							size_t nTargetSize = target - targetStart;
+@@ -290,7 +290,7 @@ namespace NSUnicodeConverter
+ 						UChar* target = targetStart;
+ 						UChar* targetLimit = target + uBufSize;
+ 
+-						ucnv_toUnicode(conv, &target, targetLimit, &source, sourceLimit, NULL, TRUE, &status);
++						ucnv_toUnicode(conv, &target, targetLimit, &source, sourceLimit, NULL, true, &status);
+ 						if (U_SUCCESS(status))
+ 						{
+ 							size_t nTargetSize = target - targetStart;
+diff -up core/UnicodeConverter/UnicodeConverter.pro.p1~ core/UnicodeConverter/UnicodeConverter.pro
+--- core/UnicodeConverter/UnicodeConverter.pro.p1~	2026-06-10 23:06:38.810215493 +0200
++++ core/UnicodeConverter/UnicodeConverter.pro	2026-06-10 23:43:04.499647834 +0200
+@@ -71,3 +71,5 @@ SOURCES += \
+ HEADERS +=\
+     UnicodeConverter.h
+ }
++
++LIBS += -licuuc

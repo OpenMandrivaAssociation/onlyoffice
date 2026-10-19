@@ -1,0 +1,109 @@
+--- a/win-linux/src/components/cmessage.cpp
++++ b/win-linux/src/components/cmessage.cpp
+@@ -66,11 +66,15 @@
+         delete m_pQtBackend;
+         m_pQtBackend = nullptr;
+     }
++#if defined(_WIN32) && !defined(__OS_WIN_XP)
++    // The GTK backend is not used. On Linux this pointer stays null and
++    // the type is incomplete, so do not delete it here.
+     if (m_pPlatformBackend)
+     {
+         delete m_pPlatformBackend;
+         m_pPlatformBackend = nullptr;
+     }
++#endif
+ }
+ 
+ int CMessage::showMessage(QWidget *parent, const QString &msg, Icon msgIcon,
+@@ -109,49 +113,69 @@
+ 
+ void CMessage::setButtons(std::initializer_list<QString> btns)
+ {
+-    m_pPlatformBackend
+-        ? m_pPlatformBackend->setButtons(btns)
+-        : m_pQtBackend->setButtons(btns);
++#if defined(_WIN32) && !defined(__OS_WIN_XP)
++    if (m_pPlatformBackend)
++        m_pPlatformBackend->setButtons(btns);
++    else
++#endif
++    m_pQtBackend->setButtons(btns);
+ }
+ 
+ void CMessage::setButtons(Buttons btns)
+ {
+-    m_pPlatformBackend
+-        ? m_pPlatformBackend->setButtons(btns)
+-        : m_pQtBackend->setButtons(btns);
++#if defined(_WIN32) && !defined(__OS_WIN_XP)
++    if (m_pPlatformBackend)
++        m_pPlatformBackend->setButtons(btns);
++    else
++#endif
++    m_pQtBackend->setButtons(btns);
+ }
+ 
+ void CMessage::setDefaultButton(DefaultButton btn)
+ {
+-    m_pPlatformBackend
+-        ? m_pPlatformBackend->setDefaultButton(btn)
+-        : m_pQtBackend->setDefaultButton(btn);
++#if defined(_WIN32) && !defined(__OS_WIN_XP)
++    if (m_pPlatformBackend)
++        m_pPlatformBackend->setDefaultButton(btn);
++    else
++#endif
++    m_pQtBackend->setDefaultButton(btn);
+ }
+ 
+ void CMessage::setIcon(Icon msgIcon)
+ {
+-    m_pPlatformBackend
+-        ? m_pPlatformBackend->setIcon(msgIcon)
+-        : m_pQtBackend->setIcon(msgIcon);
++#if defined(_WIN32) && !defined(__OS_WIN_XP)
++    if (m_pPlatformBackend)
++        m_pPlatformBackend->setIcon(msgIcon);
++    else
++#endif
++    m_pQtBackend->setIcon(msgIcon);
+ }
+ 
+ void CMessage::setText(const QString &text)
+ {
+-    m_pPlatformBackend
+-        ? m_pPlatformBackend->setText(text)
+-        : m_pQtBackend->setText(text);
++#if defined(_WIN32) && !defined(__OS_WIN_XP)
++    if (m_pPlatformBackend)
++        m_pPlatformBackend->setText(text);
++    else
++#endif
++    m_pQtBackend->setText(text);
+ }
+ 
+ void CMessage::setConfig(const Config &conf)
+ {
+-    m_pPlatformBackend
+-        ? m_pPlatformBackend->setConfig(conf)
+-        : m_pQtBackend->setConfig(conf);
++#if defined(_WIN32) && !defined(__OS_WIN_XP)
++    if (m_pPlatformBackend)
++        m_pPlatformBackend->setConfig(conf);
++    else
++#endif
++    m_pQtBackend->setConfig(conf);
+ }
+ 
+ int CMessage::exec()
+ {
+-    return m_pPlatformBackend
+-               ? m_pPlatformBackend->exec()
+-               : m_pQtBackend->exec();
++#if defined(_WIN32) && !defined(__OS_WIN_XP)
++    if (m_pPlatformBackend)
++        return m_pPlatformBackend->exec();
++#endif
++    return m_pQtBackend->exec();
+ }

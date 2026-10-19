@@ -1,0 +1,90 @@
+diff -up core/Common/base.pri.p4~ core/Common/base.pri
+--- core/Common/base.pri.p4~	2026-06-10 23:45:44.688730784 +0200
++++ core/Common/base.pri	2026-06-10 23:45:53.946956530 +0200
+@@ -373,15 +373,6 @@ core_linux {
+ 	}
+ }
+ 
+-core_linux {
+-	equals(TEMPLATE, app):CONFIG += core_static_link_libstd
+-	plugin:CONFIG += core_static_link_libstd
+-
+-
+-	equals(TEMPLATE, app):QMAKE_LFLAGS_RELEASE += -Wl,-s
+-	plugin:QMAKE_LFLAGS_RELEASE += -Wl,-s
+-}
+-
+ core_win_32 {
+ 	CORE_BUILDS_PLATFORM_PREFIX = win_32
+ }
+diff -up core/DesktopEditor/doctrenderer/js_internal/v8/inspector/inspector.pro.p4~ core/DesktopEditor/doctrenderer/js_internal/v8/inspector/inspector.pro
+--- core/DesktopEditor/doctrenderer/js_internal/v8/inspector/inspector.pro.p4~	2026-06-10 23:45:45.155892982 +0200
++++ core/DesktopEditor/doctrenderer/js_internal/v8/inspector/inspector.pro	2026-06-10 23:45:53.947158932 +0200
+@@ -40,8 +40,6 @@ CONFIG   -= app_bundle
+ 
+ TEMPLATE = app
+ 
+-CONFIG += core_static_link_libstd
+-
+ CORE_ROOT_DIR = $$PWD/../../../../../../core
+ PWD_ROOT_DIR = $$PWD
+ 
+diff -up core/DesktopEditor/doctrenderer/test/embed/external/test.pro.p4~ core/DesktopEditor/doctrenderer/test/embed/external/test.pro
+--- core/DesktopEditor/doctrenderer/test/embed/external/test.pro.p4~	2026-06-10 23:45:45.158906390 +0200
++++ core/DesktopEditor/doctrenderer/test/embed/external/test.pro	2026-06-10 23:45:53.947273314 +0200
+@@ -40,8 +40,6 @@ CONFIG   -= app_bundle
+ 
+ TEMPLATE = app
+ 
+-CONFIG += core_static_link_libstd
+-
+ CORE_ROOT_DIR = $$PWD/../../../../../../core
+ PWD_ROOT_DIR = $$PWD
+ 
+diff -up core/DesktopEditor/doctrenderer/test/embed/internal/hash/test.pro.p4~ core/DesktopEditor/doctrenderer/test/embed/internal/hash/test.pro
+--- core/DesktopEditor/doctrenderer/test/embed/internal/hash/test.pro.p4~	2026-06-10 23:45:45.159892452 +0200
++++ core/DesktopEditor/doctrenderer/test/embed/internal/hash/test.pro	2026-06-10 23:47:23.995024751 +0200
+@@ -40,8 +40,6 @@ CONFIG   -= app_bundle
+ 
+ TEMPLATE = app
+ 
+-CONFIG += core_static_link_libstd
+-
+ CORE_ROOT_DIR = $$PWD/../../../../../../../core
+ CORE_3DPARTY_DIR = $$CORE_ROOT_DIR/Common/3dParty
+ PWD_ROOT_DIR = $$PWD
+diff -up core/DesktopEditor/doctrenderer/test/js_internal/test.pro.p4~ core/DesktopEditor/doctrenderer/test/js_internal/test.pro
+--- core/DesktopEditor/doctrenderer/test/js_internal/test.pro.p4~	2026-06-10 23:45:45.160089095 +0200
++++ core/DesktopEditor/doctrenderer/test/js_internal/test.pro	2026-06-10 23:47:39.670679399 +0200
+@@ -40,8 +40,6 @@ CONFIG	-= app_bundle
+ 
+ TEMPLATE = app
+ 
+-CONFIG	+= core_static_link_libstd
+-
+ CORE_ROOT_DIR = $$PWD/../../../../../core
+ CORE_3DPARTY_DIR = $$CORE_ROOT_DIR/Common/3dParty
+ PWD_ROOT_DIR = $$PWD
+diff -up core/DesktopEditor/doctrenderer/test/json/test.pro.p4~ core/DesktopEditor/doctrenderer/test/json/test.pro
+--- core/DesktopEditor/doctrenderer/test/json/test.pro.p4~	2026-06-10 23:45:45.160356288 +0200
++++ core/DesktopEditor/doctrenderer/test/json/test.pro	2026-06-10 23:47:53.066258901 +0200
+@@ -40,8 +40,6 @@ CONFIG	-= app_bundle
+ 
+ TEMPLATE = app
+ 
+-CONFIG	+= core_static_link_libstd
+-
+ CORE_ROOT_DIR = $$PWD/../../../../../core
+ CORE_3DPARTY_DIR = $$CORE_ROOT_DIR/Common/3dParty
+ PWD_ROOT_DIR = $$PWD
+diff -up core/OdfFile/Test/test_odf/test_odf.pro.p4~ core/OdfFile/Test/test_odf/test_odf.pro
+--- core/OdfFile/Test/test_odf/test_odf.pro.p4~	2026-06-10 23:45:47.054037789 +0200
++++ core/OdfFile/Test/test_odf/test_odf.pro	2026-06-10 23:45:53.947895942 +0200
+@@ -40,7 +40,6 @@ TARGET = test_odf
+ CONFIG   += console
+ CONFIG   -= app_bundle
+ 
+-CONFIG += core_static_link_libstd
+ CONFIG += build_x2t_as_library
+ 
+ CORE_ROOT_DIR = $$PWD/../../../../core

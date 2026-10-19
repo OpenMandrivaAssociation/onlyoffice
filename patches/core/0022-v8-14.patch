@@ -1,0 +1,395 @@
+--- a/Common/3dParty/v8/v8.pri
++++ b/Common/3dParty/v8/v8.pri
+@@ -1,9 +1,9 @@
+ CORE_V8_PATH_OVERRIDE=$$PWD
+ 
+ # Use the distro libv8 instead of fetching and building the v8 8.9 tree
+-# that upstream drops into ../v8_89. OpenMandriva's libv8 7.4 matches the
+-# "89+" wrapper (NewDefaultPlatform, Utf8Value(Isolate), kEagerCompile)
+-# except ArrayBuffer backing stores, which are gated off below.
++# that upstream drops into ../v8_89. The library is the V8 that Node.js
++# ships (major 14): NewDefaultPlatform, DisposePlatform, backing stores.
++# The snapshot is linked into libv8 and ICU is the system library.
+ unix:!mac:!android:!build_xp:CONFIG += use_system_v8
+ 
+ !use_system_v8:!v8_version_60:CONFIG += v8_version_89
+@@ -66,11 +66,12 @@
+ 
+ core_linux {
+     use_system_v8 {
++        CONFIG += link_pkgconfig
++        PKGCONFIG += v8
+         DEFINES += V8_VERSION_89_PLUS
++        DEFINES += V8_VERSION_121_PLUS
+         DEFINES += DISABLE_MEMORY_LIMITATION
+-        DEFINES += V8_NO_BACKING_STORE
+         DEFINES += V8_SYSTEM_STARTUP_DATA
+-        LIBS += -lv8 -lv8_libplatform -lv8_libbase
+     } else:use_v8_monolith {
+         LIBS += -L$$CORE_V8_PATH_LIBS -lv8_monolith
+     } else {
+--- a/DesktopEditor/doctrenderer/js_internal/v8/v8_base.h
++++ b/DesktopEditor/doctrenderer/js_internal/v8/v8_base.h
+@@ -14,6 +14,8 @@
+ #include <stack>
+ #include <cstdlib>
+ #include <cstring>
++#include <algorithm>
++#include <vector>
+ 
+ #ifdef __ANDROID__
+ #ifndef DISABLE_MEMORY_LIMITATION
+@@ -141,31 +143,17 @@
+ 
+ #ifndef V8_OS_XP
+ #if defined(DOCBUILDER_V8_JITLESS)
+-		// libv8 7.4 only has SetFlagsFromString(flags, length). V8 8.9+ has both.
++		// SetFlagsFromString(flags, length) is the overload V8 7.4 has.
++		// Newer V8 keeps it alongside the one-argument form.
+ 		v8::V8::SetFlagsFromString("--jitless", (int)(sizeof("--jitless") - 1));
+-#elif !defined(DOCBUILDER_V8_ALLOW_WASM)
++#elif !defined(DOCBUILDER_V8_ALLOW_WASM) && !defined(V8_VERSION_121_PLUS)
+ 		v8::V8::SetFlagsFromString("--no-expose-wasm", (int)(sizeof("--no-expose-wasm") - 1));
+ #endif
+ 
+ #ifdef V8_SYSTEM_STARTUP_DATA
+-		// Distro libv8 keeps natives_blob.bin and snapshot_blob.bin next to
+-		// the library, and links system ICU, so the bundled icudtl.dat lookup
+-		// must not run.
+-		// V8 7.4 treats this argument as an executable path and strips the
+-		// last component (src/base/file-utils.cc RelativePath). A directory
+-		// without a trailing slash, "/usr/lib64", is looked up as
+-		// "/usr/natives_blob.bin". Pass the blob files themselves.
+-		std::wstring sV8BlobDir = L"/usr/lib64";
+-		if (!NSFile::CFileBinary::Exists(sV8BlobDir + L"/snapshot_blob.bin") &&
+-			NSFile::CFileBinary::Exists(L"/usr/lib/snapshot_blob.bin"))
+-			sV8BlobDir = L"/usr/lib";
+-		// U_TO_UTF8 is a macro and evaluates its argument twice. The argument
+-		// has to be an lvalue; a + expression binds .c_str() to the literal.
+-		std::wstring sV8NativesPath = sV8BlobDir + L"/natives_blob.bin";
+-		std::wstring sV8SnapshotPath = sV8BlobDir + L"/snapshot_blob.bin";
+-		std::string sV8Natives = U_TO_UTF8(sV8NativesPath);
+-		std::string sV8Snapshot = U_TO_UTF8(sV8SnapshotPath);
+-		v8::V8::InitializeExternalStartupData(sV8Natives.c_str(), sV8Snapshot.c_str());
++		// This V8 is the one Node ships. The snapshot is linked into
++		// libv8.so and ICU is the system library, so there is no
++		// snapshot_blob.bin and no icudtl.dat to load.
+ #else
+ 		v8::V8::InitializeICUDefaultLocation(sPrA.c_str());
+ 		v8::V8::InitializeExternalStartupData(sPrA.c_str());
+@@ -949,19 +937,68 @@
+ 
+ namespace NSJSBase
+ {
++	// V8 14 has no Isolate::VisitHandlesWithClassIds. Native embed objects
++	// are tracked here so CJSContext::Dispose can free the ones the GC has
++	// not collected. Weak callbacks do not run from Isolate::Dispose.
++	// Slot 0 is unused elsewhere in this tree. GetNumberOfDataSlots() is 4.
++	inline std::vector<CJSEmbedObject*>* EmbedObjectRegistry(v8::Isolate* isolate)
++	{
++		return static_cast<std::vector<CJSEmbedObject*>*>(isolate->GetData(0));
++	}
++
++	inline void TrackEmbedObject(v8::Isolate* isolate, CJSEmbedObject* object)
++	{
++		std::vector<CJSEmbedObject*>* registry = EmbedObjectRegistry(isolate);
++		if (!registry)
++		{
++			registry = new std::vector<CJSEmbedObject*>();
++			isolate->SetData(0, registry);
++		}
++		registry->push_back(object);
++	}
++
++	inline void UntrackEmbedObject(v8::Isolate* isolate, CJSEmbedObject* object)
++	{
++		std::vector<CJSEmbedObject*>* registry = EmbedObjectRegistry(isolate);
++		if (!registry)
++			return;
++		std::vector<CJSEmbedObject*>::iterator it = std::find(registry->begin(), registry->end(), object);
++		if (it != registry->end())
++			registry->erase(it);
++	}
++
++	inline void DestroyTrackedEmbedObjects(v8::Isolate* isolate)
++	{
++		std::vector<CJSEmbedObject*>* registry = EmbedObjectRegistry(isolate);
++		// Drop the slot before deleting. The destructor untracks, and that
++		// must not walk a vector we are already draining.
++		isolate->SetData(0, NULL);
++		if (!registry)
++			return;
++		std::vector<CJSEmbedObject*> doomed;
++		doomed.swap(*registry);
++		delete registry;
++		for (size_t i = 0; i < doomed.size(); ++i)
++			delete doomed[i];
++	}
++
+ 	class CJSEmbedObjectPrivate : public CJSEmbedObjectPrivateBase
+ 	{
+ 	public:
+ 		v8::Persistent<v8::Object> handle;
+-		// contstant id for all weak native handles
+-		static const uint16_t kWeakHandleId = 1;
++		v8::Isolate* m_isolate;
++		CJSEmbedObject* m_embed;
+ 
+ 		CJSEmbedObjectPrivate(v8::Local<v8::Object> obj)
++			: m_isolate(NULL)
++			, m_embed(NULL)
+ 		{
+ 			SetWeak(obj);
+ 		}
+ 		virtual ~CJSEmbedObjectPrivate()
+ 		{
++			if (m_isolate && m_embed)
++				UntrackEmbedObject(m_isolate, m_embed);
+ 			ClearWeak();
+ 		}
+ 
+@@ -971,10 +1008,11 @@
+ 			v8::Handle<v8::External> field = v8::Handle<v8::External>::Cast(obj->GetInternalField(0));
+ 			CJSEmbedObject* pEmbedObject = (NSJSBase::CJSEmbedObject*)field->Value();
+ 
+-			handle.Reset(CV8Worker::GetCurrent(), obj);
++			m_isolate = CV8Worker::GetCurrent();
++			m_embed = pEmbedObject;
++			handle.Reset(m_isolate, obj);
+ 			handle.SetWeak(pEmbedObject, EmbedObjectWeakCallback, v8::WeakCallbackType::kParameter);
+-			// set class_id for being able to iterate over all these handles to destroy them on isolate disposal
+-			handle.SetWrapperClassId(kWeakHandleId);
++			TrackEmbedObject(m_isolate, pEmbedObject);
+ 
+ 			pEmbedObject->embed_native_internal = this;
+ 		}
+@@ -1052,7 +1090,7 @@
+ #define PROPERTY_GET(NAME, NAME_EMBED)                                                      \
+ 	void NAME(v8::Local<v8::String> _name, const v8::PropertyCallbackInfo<v8::Value>& info) \
+ {                                                                                           \
+-	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(info.Holder()));    \
++	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(info.HolderV2()));    \
+ 	if (!_this) return;                                                                     \
+ 	JSSmart<CJSValue> ret = _this->NAME_EMBED();                                            \
+ 	js_return(info, ret);                                                                   \
+@@ -1061,7 +1099,7 @@
+ #define FUNCTION_WRAPPER_V8_0(NAME, NAME_EMBED)                                             \
+ 	void NAME(const v8::FunctionCallbackInfo<v8::Value>& args)                              \
+ {                                                                                           \
+-	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.Holder()));    \
++	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.This()));    \
+ 	if (!_this) return;                                                                     \
+ 	JSSmart<CJSValue> ret = _this->NAME_EMBED();                                            \
+ 	js_return(args, ret);                                                                   \
+@@ -1072,7 +1110,7 @@
+ #define FUNCTION_WRAPPER_V8_1(NAME, NAME_EMBED)                                             \
+ 	void NAME(const v8::FunctionCallbackInfo<v8::Value>& args)                              \
+ {                                                                                           \
+-	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.Holder()));    \
++	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.This()));    \
+ 	if (!_this) return;                                                                     \
+ 	JSSmart<CJSValue> ret = _this->NAME_EMBED(js_value(args[0]));                           \
+ 	js_return(args, ret);                                                                   \
+@@ -1080,7 +1118,7 @@
+ #define FUNCTION_WRAPPER_V8_2(NAME, NAME_EMBED)                                             \
+ 	void NAME(const v8::FunctionCallbackInfo<v8::Value>& args)                              \
+ {                                                                                           \
+-	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.Holder()));    \
++	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.This()));    \
+ 	if (!_this) return;                                                                     \
+ 	JSSmart<CJSValue> ret = _this->NAME_EMBED(js_value(args[0]), js_value(args[1]));        \
+ 	js_return(args, ret);                                                                   \
+@@ -1088,7 +1126,7 @@
+ #define FUNCTION_WRAPPER_V8_3(NAME, NAME_EMBED)                                                             \
+ 	void NAME(const v8::FunctionCallbackInfo<v8::Value>& args)                                              \
+ {                                                                                                           \
+-	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.Holder()));                    \
++	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.This()));                    \
+ 	if (!_this) return;                                                                                     \
+ 	JSSmart<CJSValue> ret = _this->NAME_EMBED(js_value(args[0]), js_value(args[1]), js_value(args[2]));     \
+ 	js_return(args, ret);                                                                                   \
+@@ -1096,7 +1134,7 @@
+ #define FUNCTION_WRAPPER_V8_4(NAME, NAME_EMBED)                                                                             \
+ 	void NAME(const v8::FunctionCallbackInfo<v8::Value>& args)                                                              \
+ {                                                                                                                           \
+-	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.Holder()));                                    \
++	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.This()));                                    \
+ 	if (!_this) return;                                                                                                     \
+ 	JSSmart<CJSValue> ret = _this->NAME_EMBED(js_value(args[0]), js_value(args[1]), js_value(args[2]), js_value(args[3]));  \
+ 	js_return(args, ret);                                                                                                   \
+@@ -1104,7 +1142,7 @@
+ #define FUNCTION_WRAPPER_V8_5(NAME, NAME_EMBED)                                                                                                 \
+ 	void NAME(const v8::FunctionCallbackInfo<v8::Value>& args)                                                                                  \
+ {                                                                                                                                               \
+-	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.Holder()));                                                        \
++	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.This()));                                                        \
+ 	if (!_this) return;                                                                                                                         \
+ 	JSSmart<CJSValue> ret = _this->NAME_EMBED(js_value(args[0]), js_value(args[1]), js_value(args[2]), js_value(args[3]), js_value(args[4]));   \
+ 	js_return(args, ret);                                                                                                                       \
+@@ -1112,7 +1150,7 @@
+ #define FUNCTION_WRAPPER_V8_6(NAME, NAME_EMBED)                                                                                                                    \
+ 	void NAME(const v8::FunctionCallbackInfo<v8::Value>& args)                                                                                                     \
+ {                                                                                                                                                                  \
+-	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.Holder()));                                                                           \
++	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.This()));                                                                           \
+ 	if (!_this) return;                                                                                                                                            \
+ 	JSSmart<CJSValue> ret = _this->NAME_EMBED(js_value(args[0]), js_value(args[1]), js_value(args[2]), js_value(args[3]), js_value(args[4]), js_value(args[5]));   \
+ 	js_return(args, ret);                                                                                                                                          \
+@@ -1120,7 +1158,7 @@
+ #define FUNCTION_WRAPPER_V8_7(NAME, NAME_EMBED)                                                                                                 \
+ 	void NAME(const v8::FunctionCallbackInfo<v8::Value>& args)                                                                                  \
+ {                                                                                                                                               \
+-	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.Holder()));                                                        \
++	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.This()));                                                        \
+ 	if (!_this) return;                                                                                                                         \
+ 	JSSmart<CJSValue> ret = _this->NAME_EMBED(js_value(args[0]), js_value(args[1]), js_value(args[2]), js_value(args[3]), js_value(args[4]),    \
+ 	js_value(args[5]), js_value(args[6]));                                                                                                      \
+@@ -1129,7 +1167,7 @@
+ #define FUNCTION_WRAPPER_V8_8(NAME, NAME_EMBED)                                                                                                 \
+ 	void NAME(const v8::FunctionCallbackInfo<v8::Value>& args)                                                                                  \
+ {                                                                                                                                               \
+-	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.Holder()));                                                        \
++	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.This()));                                                        \
+ 	if (!_this) return;                                                                                                                         \
+ 	JSSmart<CJSValue> ret = _this->NAME_EMBED(js_value(args[0]), js_value(args[1]), js_value(args[2]), js_value(args[3]), js_value(args[4]),    \
+ 	js_value(args[5]), js_value(args[6]), js_value(args[7]));                                                                                   \
+@@ -1138,7 +1176,7 @@
+ #define FUNCTION_WRAPPER_V8_9(NAME, NAME_EMBED)                                                                                                 \
+ 	void NAME(const v8::FunctionCallbackInfo<v8::Value>& args)                                                                                  \
+ {                                                                                                                                               \
+-	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.Holder()));                                                        \
++	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.This()));                                                        \
+ 	if (!_this) return;                                                                                                                         \
+ 	JSSmart<CJSValue> ret = _this->NAME_EMBED(js_value(args[0]), js_value(args[1]), js_value(args[2]), js_value(args[3]), js_value(args[4]),    \
+ 	js_value(args[5]), js_value(args[6]), js_value(args[7]), js_value(args[8]));                                                                \
+@@ -1147,7 +1185,7 @@
+ #define FUNCTION_WRAPPER_V8_10(NAME, NAME_EMBED)                                                                                                                \
+ 	void NAME(const v8::FunctionCallbackInfo<v8::Value>& args)                                                                                                  \
+ {                                                                                                                                                               \
+-	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.Holder()));                                                                        \
++	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.This()));                                                                        \
+ 	if (!_this) return;                                                                                                                                         \
+ 	JSSmart<CJSValue> ret = _this->NAME_EMBED(js_value(args[0]), js_value(args[1]), js_value(args[2]), js_value(args[3]), js_value(args[4]), js_value(args[5]), \
+ 	js_value(args[6]), js_value(args[7]), js_value(args[8]), js_value(args[9]));                                                                                \
+@@ -1156,7 +1194,7 @@
+ #define FUNCTION_WRAPPER_V8_13(NAME, NAME_EMBED)                                                                                                                \
+ 	void NAME(const v8::FunctionCallbackInfo<v8::Value>& args)                                                                                                  \
+ {                                                                                                                                                               \
+-	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.Holder()));                                                                        \
++	CURRENTWRAPPER* _this = dynamic_cast<CURRENTWRAPPER*>(unwrap_native(args.This()));                                                                        \
+ 	if (!_this) return;                                                                                                                                         \
+ 	JSSmart<CJSValue> ret = _this->NAME_EMBED(js_value(args[0]), js_value(args[1]), js_value(args[2]), js_value(args[3]), js_value(args[4]), js_value(args[5]), \
+ 	js_value(args[6]), js_value(args[7]), js_value(args[8]), js_value(args[9]), js_value(args[10]), js_value(args[11]),                                         \
+--- a/DesktopEditor/doctrenderer/js_internal/v8/v8_base.cpp
++++ b/DesktopEditor/doctrenderer/js_internal/v8/v8_base.cpp
+@@ -222,33 +222,6 @@
+ 		}
+ 	}
+ 
+-	class WeakHandleVisitor : public v8::PersistentHandleVisitor
+-	{
+-	private:
+-		WeakHandleVisitor() = default;
+-
+-	public:
+-		void VisitPersistentHandle(v8::Persistent<v8::Value>* value, uint16_t class_id) override
+-		{
+-			if (class_id == CJSEmbedObjectPrivate::kWeakHandleId)
+-			{
+-				v8::Isolate* isolate = v8::Isolate::GetCurrent();
+-				v8::HandleScope scope(isolate);
+-				v8::Local<v8::Object> handle = value->Get(isolate).As<v8::Object>();
+-				v8::Local<v8::External> field = v8::Local<v8::External>::Cast(handle->GetInternalField(0));
+-				CJSEmbedObject* native = static_cast<CJSEmbedObject*>(field->Value());
+-				delete native;
+-			}
+-		}
+-
+-	public:
+-		static WeakHandleVisitor* getInstance()
+-		{
+-			static WeakHandleVisitor visitor;
+-			return &visitor;
+-		}
+-	};
+-
+ 	void CJSContext::Dispose()
+ 	{
+ #ifdef V8_INSPECTOR
+@@ -257,11 +230,12 @@
+ #endif
+ 
+ 		m_internal->m_contextPersistent.Reset();
+-		// destroy native object in the weak handles before isolate disposal
++		// destroy native objects before isolate disposal. V8 does not run
++		// weak callbacks from Isolate::Dispose.
+ 		v8::Isolate* isolate = m_internal->m_isolate;
+ 		{
+ 			v8::Isolate::Scope scope(isolate);
+-			isolate->VisitHandlesWithClassIds(WeakHandleVisitor::getInstance());
++			DestroyTrackedEmbedObjects(isolate);
+ 		}
+ 		isolate->Dispose();
+ 		m_internal->m_isolate = NULL;
+@@ -616,7 +590,7 @@
+ 	// this function is called when method from embedded object is called
+ 	void _Call(const v8::FunctionCallbackInfo<v8::Value>& args)
+ 	{
+-		CJSEmbedObject* _this = (CJSEmbedObject*)unwrap_native(args.Holder());
++		CJSEmbedObject* _this = (CJSEmbedObject*)unwrap_native(args.This());
+ 		CJSFunctionArgumentsV8 _args(&args, 0);
+ 		JSSmart<CJSValue> funcIndex = js_value(args.Data());
+ 		CJSEmbedObjectAdapterV8* _adapter = static_cast<CJSEmbedObjectAdapterV8*>(_this->getAdapter());
+--- a/DesktopEditor/doctrenderer/js_internal/v8/inspector/utils.h
++++ b/DesktopEditor/doctrenderer/js_internal/v8/inspector/utils.h
+@@ -13,7 +13,7 @@
+ 	// convert std::string to v8_inspector::StringView
+ 	v8_inspector::StringView convertToStringView(const std::string& str);
+ 	// get JSON object from JSON-string
+-	v8::Local<v8::Object> parseJson(const v8::Local<v8::Context>& context, const std::string& sJson);
++	v8::Local<v8::Object> parseJson(v8::Isolate* pIsolate, const v8::Local<v8::Context>& context, const std::string& sJson);
+ 	// get specified property value from JSON object
+ 	std::string getPropertyFromJson(v8::Isolate* pIsolate, const v8::Local<v8::Object>& jsonObject, const std::string& sPropertyName);
+ 
+--- a/DesktopEditor/doctrenderer/js_internal/v8/inspector/utils.cpp
++++ b/DesktopEditor/doctrenderer/js_internal/v8/inspector/utils.cpp
+@@ -24,9 +24,9 @@
+ 		return { pStringView, str.length() };
+ 	}
+ 
+-	v8::Local<v8::Object> parseJson(const v8::Local<v8::Context>& context, const std::string& sJson)
++	v8::Local<v8::Object> parseJson(v8::Isolate* pIsolate, const v8::Local<v8::Context>& context, const std::string& sJson)
+ 	{
+-		v8::MaybeLocal<v8::Value> jsonValue = v8::JSON::Parse(context, CreateV8String(context->GetIsolate(), sJson));
++		v8::MaybeLocal<v8::Value> jsonValue = v8::JSON::Parse(context, CreateV8String(pIsolate, sJson));
+ 		if (jsonValue.IsEmpty())
+ 		{
+ 			return v8::Local<v8::Object>();
+--- a/DesktopEditor/doctrenderer/js_internal/v8/inspector/inspector.cpp
++++ b/DesktopEditor/doctrenderer/js_internal/v8/inspector/inspector.cpp
+@@ -28,7 +28,7 @@
+ 
+ 	void CInspector::onMessage(std::string& sMessage)
+ 	{
+-		v8::Local<v8::Object> oJsonObject = parseJson(m_pIsolate->GetCurrentContext(), sMessage);
++		v8::Local<v8::Object> oJsonObject = parseJson(m_pIsolate, m_pIsolate->GetCurrentContext(), sMessage);
+ 
+ 		if (!oJsonObject.IsEmpty())
+ 		{
+--- a/DesktopEditor/doctrenderer/js_internal/v8/inspector/v8_inspector_client.cpp
++++ b/DesktopEditor/doctrenderer/js_internal/v8/inspector/v8_inspector_client.cpp
+@@ -22,7 +22,13 @@
+ 		// initialize all V8 inspector stuff
+ 		m_pChannel.reset(new CV8InspectorChannelImpl(m_pIsolate, fOnResponse));
+ 		m_pInspector = v8_inspector::V8Inspector::create(m_pIsolate, this);
+-		m_pSession = m_pInspector->connect(m_nContextGroupId, m_pChannel.get(), v8_inspector::StringView());
++		// V8 14 requires a trust level. This session is the editor's own
++		// debugger, not a web page.
++		m_pSession = m_pInspector->connect(
++			m_nContextGroupId,
++			m_pChannel.get(),
++			v8_inspector::StringView(),
++			v8_inspector::V8Inspector::kFullyTrusted);
+ 		context->SetAlignedPointerInEmbedderData(1, this);
+ 
+ 		v8_inspector::StringView oContextName = convertToStringView("inspector" + std::to_string(nContextGroupId));

@@ -1,0 +1,10 @@
+--- a/OOXML/XlsxFormat/Worksheets/SheetData.cpp
++++ b/OOXML/XlsxFormat/Worksheets/SheetData.cpp
+@@ -33,6 +33,7 @@
+  * SPDX-License-Identifier: AGPL-3.0-only
+  */
+ 
++#include <cfloat>
+ #include "../Workbook/Workbook.h"
+ 
+ #include "../Common.h"

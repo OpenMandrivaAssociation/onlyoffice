@@ -1,0 +1,65 @@
+#!/bin/sh
+# Emit one OnlyOffice help or templates subpackage, in the same shape as
+# libreoffice-help-package. The directory name is the on-disk language
+# directory. Package suffixes follow LibreOffice: "-" becomes "_", and
+# template directories are lowercased (EN -> templates-en).
+# Usage: onlyoffice-lang-package help <dir>
+#        onlyoffice-lang-package templates <dir>
+set -eu
+kind=${1:?kind}
+dir=${2:?dir}
+
+case $kind in
+help|templates) ;;
+*)
+	echo "unknown package kind: $kind" >&2
+	exit 1
+	;;
+esac
+
+case $dir in
+de|DE) lang="German" ;;
+en|EN) lang="English" ;;
+es|ES) lang="Spanish" ;;
+fr|FR) lang="French" ;;
+it|IT) lang="Italian" ;;
+pt|PT) lang="Portuguese" ;;
+ru|RU) lang="Russian" ;;
+sr-Latn) lang="Serbian (Latin)" ;;
+tr|TR) lang="Turkish" ;;
+AR) lang="Arabic" ;;
+JA) lang="Japanese" ;;
+ZH) lang="Chinese" ;;
+*)
+	echo "unknown language directory: $dir" >&2
+	exit 1
+	;;
+esac
+
+case $kind in
+help)
+	suffix=$(printf '%s' "$dir" | sed -e 's,-,_,g')
+	summary="${lang} help for OnlyOffice"
+	text="This package contains the OnlyOffice help files in ${lang}."
+	files="%{_libdir}/onlyoffice/editors/web-apps/apps/*/main/resources/help/${dir}"
+	;;
+templates)
+	suffix=$(printf '%s' "$dir" | tr '[:upper:]' '[:lower:]' | sed -e 's,-,_,g')
+	summary="${lang} templates for OnlyOffice"
+	text="This package contains the OnlyOffice document templates in ${lang}."
+	files="%{_libdir}/onlyoffice/converter/templates/${dir}"
+	;;
+esac
+
+cat <<EOF
+%package ${kind}-${suffix}
+Summary:	${summary}
+Group:		Office
+Requires:	%{name} = %{EVRD}
+
+%description ${kind}-${suffix}
+${text}
+
+%files ${kind}-${suffix}
+${files}
+EOF

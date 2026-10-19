@@ -1,0 +1,21 @@
+diff -up desktop-sdk/ChromiumBasedEditors/lib/ascdocumentscore.pri.p2~ desktop-sdk/ChromiumBasedEditors/lib/ascdocumentscore.pri
+--- desktop-sdk/ChromiumBasedEditors/lib/ascdocumentscore.pri.p2~	2026-02-15 22:53:42.536509122 +0100
++++ desktop-sdk/ChromiumBasedEditors/lib/ascdocumentscore.pri	2026-02-15 22:54:26.211490849 +0100
+@@ -245,4 +245,4 @@ core_linux {
+     LIBS += -lX11 -lX11-xcb -lxkbcommon-x11 -lxkbcommon
+ }
+ 
+-ADD_DEPENDENCY(graphics, kernel, UnicodeConverter, kernel_network, PdfFile, XpsFile, DjVuFile, OFDFile, hunspell, ooxmlsignature, doctrenderer)
++ADD_DEPENDENCY(graphics, kernel, UnicodeConverter, kernel_network, PdfFile, XpsFile, DjVuFile, OFDFile, hunspell-1.7, ooxmlsignature, doctrenderer)
+diff -up desktop-sdk/ChromiumBasedEditors/lib/src/spellchecker.cpp.p2~ desktop-sdk/ChromiumBasedEditors/lib/src/spellchecker.cpp
+--- desktop-sdk/ChromiumBasedEditors/lib/src/spellchecker.cpp.p2~	2026-02-15 22:53:42.492251495 +0100
++++ desktop-sdk/ChromiumBasedEditors/lib/src/spellchecker.cpp	2026-02-15 22:53:42.538004041 +0100
+@@ -33,7 +33,7 @@
+ #include "../src/applicationmanager_p.h"
+ #include <map>
+ #include <list>
+-#include "../../../../core/Common/3dParty/hunspell/hunspell/src/hunspell/hunspell.h"
++#include <hunspell/hunspell.h>
+ #include "../../../../core/DesktopEditor/graphics/TemporaryCS.h"
+ #include "../../../../core/DesktopEditor/graphics/Timer.h"
+ #include "./plugins.h"

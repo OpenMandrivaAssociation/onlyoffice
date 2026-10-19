@@ -1,0 +1,48 @@
+diff -up desktop-apps/win-linux/ASCDocumentEditor.pro.p1~ desktop-apps/win-linux/ASCDocumentEditor.pro
+--- desktop-apps/win-linux/ASCDocumentEditor.pro.p1~	2026-06-11 00:20:05.944262135 +0200
++++ desktop-apps/win-linux/ASCDocumentEditor.pro	2026-06-11 00:20:06.110351154 +0200
+@@ -45,6 +45,9 @@ core_linux {
+     glib_resources.variable_out = SOURCES
+     QMAKE_EXTRA_COMPILERS += glib_resources
+ }
++linux {
++    QT += x11extras
++}
+ 
+ HEADERS += \
+     src/prop/cmainwindowimpl.h
+diff -up desktop-apps/win-linux/src/components/ctabpanel.h.p1~ desktop-apps/win-linux/src/components/ctabpanel.h
+--- desktop-apps/win-linux/src/components/ctabpanel.h.p1~	2026-06-11 00:20:05.974807539 +0200
++++ desktop-apps/win-linux/src/components/ctabpanel.h	2026-06-11 00:20:06.110551236 +0200
+@@ -39,7 +39,6 @@
+ #include <QWidget>
+ #include <QTimer>
+ 
+-#include "qcefview.h"
+ #include "casctabdata.h"
+ 
+ class CTabPanel : public QWidget
+diff -up desktop-apps/win-linux/src/cthemes.cpp.p1~ desktop-apps/win-linux/src/cthemes.cpp
+--- desktop-apps/win-linux/src/cthemes.cpp.p1~	2026-06-11 00:20:05.974807539 +0200
++++ desktop-apps/win-linux/src/cthemes.cpp	2026-06-11 00:27:24.446886459 +0200
+@@ -37,8 +37,6 @@
+ #include "cthemes.h"
+ #ifdef Q_OS_LINUX
+ # include <gtk/gtk.h>
+-# include <gio/gio.h>
+-# include <glib.h>
+ # include "cascapplicationmanagerwrapper.h"
+ #endif
+ #include "defines.h"
+@@ -54,6 +52,11 @@
+ #include <QPalette>
+ #include <QApplication>
+ #include <QJsonArray>
++#ifdef Q_OS_LINUX
++#undef signals
++# include <gio/gio.h>
++# include <glib.h>
++#endif
+ 
+ #define QSTRING_FROM_WSTR(s) QString::fromStdWString(s)
+ #define REGISTRY_THEME_KEY "UITheme"

@@ -1,0 +1,103 @@
+--- a/Common/3dParty/libxml/libxml.pri
++++ b/Common/3dParty/libxml/libxml.pri
+@@ -1,3 +1,10 @@
++# Linux links system libxml2 (pkg-config name libxml-2.0). The bundled
++# tree stays for other platforms and must stay off the Linux include path,
++# or <libxml/parser.h> still resolves to the bundled headers.
++unix:!mac:!android {
++    CONFIG += link_pkgconfig
++    PKGCONFIG += libxml-2.0
++} else {
+ SRC_DIR = $$PWD/libxml2
+ 
+ DEFINES += \
+@@ -55,3 +62,4 @@
+     $$SRC_DIR/xpointer.c
+ 
+ core_windows:LIBS += -lbcrypt
++}
+--- a/DesktopEditor/xml/src/xmllight.cpp
++++ b/DesktopEditor/xml/src/xmllight.cpp
+@@ -42,6 +42,33 @@ namespace XmlUtils
+         // none
+     }
+ 
++#ifdef _LINUX
++    static void libxml2_structured_err_no(void * ctx, const xmlError * error)
++    {
++        (void)ctx;
++        (void)error;
++    }
++#endif
++
++    static void SilenceLibxmlErrors()
++    {
++        xmlSetGenericErrorFunc(NULL, (xmlGenericErrorFunc)libxml2_err_no);
++#ifdef _LINUX
++        xmlSetStructuredErrorFunc(NULL, (xmlStructuredErrorFunc)libxml2_structured_err_no);
++#if defined(__clang__) || defined(__GNUC__)
++#pragma GCC diagnostic push
++#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
++#endif
++        /* 2.12+ keeps these handlers thread-local. The thrdef calls set the
++           default copied into a thread on its first libxml use. */
++        xmlThrDefSetGenericErrorFunc(NULL, (xmlGenericErrorFunc)libxml2_err_no);
++        xmlThrDefSetStructuredErrorFunc(NULL, (xmlStructuredErrorFunc)libxml2_structured_err_no);
++#if defined(__clang__) || defined(__GNUC__)
++#pragma GCC diagnostic pop
++#endif
++#endif
++    }
++
+     IXmlDOMDocument::IXmlDOMDocument()
+     {
+         m_lRef = 1;
+@@ -65,13 +92,34 @@ namespace XmlUtils
+ 
+     void IXmlDOMDocument::DisableOutput()
+     {
+-        xmlSetGenericErrorFunc(NULL, (xmlGenericErrorFunc)libxml2_err_no);
++        SilenceLibxmlErrors();
+     }
+ 
+     void IXmlDOMDocument::EnableOutput()
+     {
++#ifdef _LINUX
++        /* The bundled 2.9.2 build compiles xmlGenericErrorDefaultFunc as a
++           no-op (XML_ERROR_DISABLE_MODE). System libxml2's default handler
++           writes to stderr. SVG calls EnableOutput after a parse, so restoring
++           the real handler would turn diagnostics on for the rest of the process. */
++        SilenceLibxmlErrors();
++#else
+         xmlSetGenericErrorFunc(NULL, NULL);
++#endif
++    }
++
++#ifdef _LINUX
++    namespace {
++    struct LibxmlSilence
++    {
++        LibxmlSilence()
++        {
++            IXmlDOMDocument::DisableOutput();
++        }
++    };
++    const LibxmlSilence g_libxml_silence;
+     }
++#endif
+ }
+ 
+ namespace XmlUtils
+--- a/DesktopEditor/xml/src/xmllight_private.h
++++ b/DesktopEditor/xml/src/xmllight_private.h
+@@ -41,6 +41,10 @@
+ #ifdef _IOS
+     #include <libxml2/libxml/xmlreader.h>
+     #include <libxml2/libxml/c14n.h>
++#elif defined(_LINUX)
++    /* System libxml2. libxml.h beside this tree is an internal bundled header. */
++    #include <libxml/xmlreader.h>
++    #include <libxml/c14n.h>
+ #else
+     #include "../../../Common/3dParty/libxml/libxml2/libxml.h"
+     #include "../../../Common/3dParty/libxml/libxml2/include/libxml/xmlreader.h"

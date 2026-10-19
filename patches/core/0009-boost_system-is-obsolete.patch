@@ -1,0 +1,12 @@
+diff -up core/Common/3dParty/boost/boost.pri.omv~ core/Common/3dParty/boost/boost.pri
+--- core/Common/3dParty/boost/boost.pri.omv~	2026-02-15 23:27:12.827006916 +0100
++++ core/Common/3dParty/boost/boost.pri	2026-02-15 23:27:32.507221708 +0100
+@@ -47,7 +47,7 @@ core_windows {
+     core_boost_regex:LIBS += -L$$CORE_BOOST_LIBS -llibboost_regex$$BOOST_POSTFIX
+     core_boost_date_time:LIBS += -L$$CORE_BOOST_LIBS -llibboost_date_time$$BOOST_POSTFIX
+ } else {
+-    core_boost_libs:LIBS += -L$$CORE_BOOST_LIBS -lboost_system -lboost_filesystem
++    core_boost_libs:LIBS += -L$$CORE_BOOST_LIBS -lboost_filesystem
+     core_boost_regex:LIBS += -L$$CORE_BOOST_LIBS -lboost_regex
+     core_boost_date_time:LIBS += -L$$CORE_BOOST_LIBS -lboost_date_time
+ }

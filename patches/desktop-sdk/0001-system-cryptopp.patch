@@ -1,0 +1,15 @@
+diff -up desktop-sdk/ChromiumBasedEditors/lib/ascdocumentscore.pri.p1~ desktop-sdk/ChromiumBasedEditors/lib/ascdocumentscore.pri
+--- desktop-sdk/ChromiumBasedEditors/lib/ascdocumentscore.pri.p1~	2023-07-30 19:48:46.722220333 +0200
++++ desktop-sdk/ChromiumBasedEditors/lib/ascdocumentscore.pri	2023-07-30 19:50:03.400076682 +0200
+@@ -172,7 +172,11 @@ SOURCES += \
+ core_linux:LIBS += -ldl
+ 
+ # crypto ----------------------------------
++use_bundled_cryptopp {
+ LIBS += -L$$CORE_BUILDS_LIBRARIES_PATH -lCryptoPPLib
++} else {
++LIBS += -lcryptopp
++}
+ LIBS += -L$$CORE_BUILDS_LIBRARIES_PATH -lCompoundFileLib
+ 
+ DEFINES += CRYPTOPP_DISABLE_ASM

@@ -1,0 +1,14 @@
+--- a/DesktopEditor/cximage/libpsd/psd_zip.c
++++ b/DesktopEditor/cximage/libpsd/psd_zip.c
+@@ -27,7 +27,11 @@
+ #include "psd_config.h"
+ 
+ #ifdef PSD_INCLUDE_ZLIB
++#ifdef _LINUX
++#include <zlib.h>
++#else
+ #include "../zlib/zlib.h"
++#endif
+ #include <memory.h>
+ 
+ psd_status psd_unzip_without_prediction(psd_uchar *src_buf, psd_int src_len, 

@@ -1,0 +1,33 @@
+diff -up core/OfficeUtils/src/zlib-1.2.11/gzlib.c.omv~ core/OfficeUtils/src/zlib-1.2.11/gzlib.c
+--- core/OfficeUtils/src/zlib-1.2.11/gzlib.c.omv~	2023-07-30 20:03:38.362381893 +0200
++++ core/OfficeUtils/src/zlib-1.2.11/gzlib.c	2023-07-30 20:03:44.412440505 +0200
+@@ -4,6 +4,7 @@
+  */
+ 
+ #include "gzguts.h"
++#include <unistd.h>
+ 
+ #if defined(_WIN32) && !defined(__BORLANDC__) && !defined(__MINGW32__)
+ #  define LSEEK _lseeki64
+diff -up core/OfficeUtils/src/zlib-1.2.11/gzread.c.omv~ core/OfficeUtils/src/zlib-1.2.11/gzread.c
+--- core/OfficeUtils/src/zlib-1.2.11/gzread.c.omv~	2023-07-30 20:01:54.214368824 +0200
++++ core/OfficeUtils/src/zlib-1.2.11/gzread.c	2023-07-30 20:01:59.905424397 +0200
+@@ -4,6 +4,7 @@
+  */
+ 
+ #include "gzguts.h"
++#include <unistd.h>
+ 
+ /* Local functions */
+ local int gz_load OF((gz_statep, unsigned char *, unsigned, unsigned *));
+diff -up core/OfficeUtils/src/zlib-1.2.11/gzwrite.c.omv~ core/OfficeUtils/src/zlib-1.2.11/gzwrite.c
+--- core/OfficeUtils/src/zlib-1.2.11/gzwrite.c.omv~	2023-07-30 19:59:57.804225793 +0200
++++ core/OfficeUtils/src/zlib-1.2.11/gzwrite.c	2023-07-30 20:01:20.485038902 +0200
+@@ -4,6 +4,7 @@
+  */
+ 
+ #include "gzguts.h"
++#include <unistd.h>
+ 
+ /* Local functions */
+ local int gz_init OF((gz_statep));
