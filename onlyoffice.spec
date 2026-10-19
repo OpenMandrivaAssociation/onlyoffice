@@ -331,12 +331,20 @@ qmake() {
 	# the arch tune, -O3, -g3 and -flto. Drop the mkspec -O2 or it wins.
 	# qmake does not read $LDFLAGS. LTO codegen uses the link line, so
 	# pass %%{build_ldflags} (the same flags, -Wl,-O2, --no-undefined, -flto).
+	# Full LTO of x2t is large enough that the znver1 builder kills the
+	# link. -flto=thin comes last, so it overrides -flto. Clang uses the
+	# last of those two flags.
+%ifarch znver1
+	lto_thin=-flto=thin
+%else
+	lto_thin=
+%endif
 	qmake-qt6 \
 		QMAKE_CFLAGS_RELEASE-=-O2 \
 		QMAKE_CXXFLAGS_RELEASE-=-O2 \
-		QMAKE_CFLAGS_RELEASE+="%{optflags}" \
-		QMAKE_CXXFLAGS_RELEASE+="%{optflags}" \
-		QMAKE_LFLAGS+="%{build_ldflags}" \
+		QMAKE_CFLAGS_RELEASE+="%{optflags} ${lto_thin}" \
+		QMAKE_CXXFLAGS_RELEASE+="%{optflags} ${lto_thin}" \
+		QMAKE_LFLAGS+="%{build_ldflags} ${lto_thin}" \
 		"$@"
 }
 
