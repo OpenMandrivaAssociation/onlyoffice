@@ -100,6 +100,9 @@ BuildRequires:	pkgconfig(icu-i18n)
 # libde265 are in restricted, so a main build must not require them.
 BuildRequires:	pkgconfig(libheif)
 BuildRequires:	pkgconfig(openssl)
+# socket.io-client-cpp is not in the core git archive. localipc.cpp
+# includes <asio.hpp>; the header-only asio package provides it.
+BuildRequires:	pkgconfig(asio)
 BuildRequires:	pkgconfig(libetonyek-0.1)
 BuildRequires:	pkgconfig(libodfgen-0.1)
 BuildRequires:	pkgconfig(librevenge-stream-0.0)
