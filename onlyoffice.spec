@@ -26,7 +26,7 @@
 
 Name:		onlyoffice
 Version:	10.0.0
-Release:	1
+Release:	2
 Summary:	Office suite for documents, spreadsheets and presentations
 Group:		Office
 # Program text is AGPL-3.0-only. Non-code assets are CC-BY-SA-4.0.
@@ -619,13 +619,15 @@ for lang in %{template_langs}; do
 	fi
 done
 
+# One menu entry. The old onlyoffice-desktopeditors name stays a command
+# symlink and an RPM Provides. A second file in applications/ is a second
+# KDE menu item, and spec-helper's sed -i turns a desktop symlink into a
+# regular file, so that alias cannot be a symlink either.
 m4 -I desktop-apps/package/common/linux \
 	-D M4_DESKTOPEDITORS_EXEC=onlyoffice \
 	-D M4_SCHEME_HANDLER=oo-office \
 	desktop-apps/package/common/linux/desktopeditors.desktop.m4 \
 	> %{buildroot}%{_datadir}/applications/onlyoffice.desktop
-ln -s onlyoffice.desktop \
-	%{buildroot}%{_datadir}/applications/onlyoffice-desktopeditors.desktop
 for png in desktop-apps/package/common/linux/icons/*.png; do
 	size=$(basename "$png" .png)
 	icdir=%{buildroot}%{_datadir}/icons/hicolor/$size/apps
@@ -669,7 +671,6 @@ for l in %{template_langs}; do
 echo "%%exclude %%{_libdir}/onlyoffice/converter/templates/${l}"
 done)}
 %{_datadir}/applications/onlyoffice.desktop
-%{_datadir}/applications/onlyoffice-desktopeditors.desktop
 %{_datadir}/icons/hicolor/*/apps/onlyoffice.png
 %{_datadir}/icons/hicolor/*/apps/onlyoffice-desktopeditors.png
 
