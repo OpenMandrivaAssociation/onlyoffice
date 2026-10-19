@@ -117,6 +117,9 @@ BuildRequires:	pkgconfig(xkbcommon)
 BuildRequires:	pkgconfig(xkbcommon-x11)
 BuildRequires:	pkgconfig(libnotify)
 BuildRequires:	pkgconfig(cups)
+# Boost is one package per library. The sources include headers from
+# many of them, not only the three that are linked.
+BuildRequires:	boost-devel
 BuildRequires:	cmake(boost_filesystem)
 BuildRequires:	cmake(boost_regex)
 BuildRequires:	cmake(boost_date_time)
