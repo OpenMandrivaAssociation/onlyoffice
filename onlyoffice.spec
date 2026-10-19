@@ -53,11 +53,12 @@ Source10:	loginpage-deploy.tar.gz
 # language. Invoked from the bottom of this spec, like
 # libreoffice-help-package.
 Source11:	onlyoffice-lang-package
-
-# RPM Patch tags are looked up by basename, so patches/core/0001-*.patch
-# would be sought as 0001-*.patch and missed. %%prep applies
-# %%{_sourcedir}/patches/<component>/*.patch with -p1 from inside that
+# RPM Patch tags are looked up by basename, so a file in patches/core/
+# cannot be a Patch tag. ABF packs only declared sources into the SRPM,
+# and the git patches directory would be left behind. %%prep unpacks
+# this and applies patches/<component>/*.patch with -p1 from inside that
 # component. patches/desktop-sdk/DISABLED is not in that glob.
+Source12:	onlyoffice-patches.tar.gz
 
 BuildRequires:	make
 BuildRequires:	patch
@@ -155,13 +156,20 @@ mv web-apps-%{webapps_commit} web-apps
 
 # Patches are written to apply from inside the component. -p1 strips either
 # the leading "core/" of a diff -up or the leading "a/" of a diff --git.
+tar -xf %{SOURCE12}
 for comp in core desktop-sdk desktop-apps sdkjs web-apps; do
 	[ -d "$comp" ]
-	for p in %{_sourcedir}/patches/$comp/*.patch; do
+	found=
+	for p in patches/$comp/*.patch; do
 		[ -f "$p" ] || continue
+		found=1
 		echo "applying $p"
 		patch -d "$comp" -p1 --forward --batch --input="$p"
 	done
+	if [ -z "$found" ]; then
+		echo "no patches for $comp" >&2
+		exit 1
+	fi
 done
 
 mkdir -p core/Common/3dParty/html core/Common/3dParty/hyphen
