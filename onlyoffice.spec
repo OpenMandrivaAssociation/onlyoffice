@@ -164,7 +164,9 @@ for comp in core desktop-sdk desktop-apps sdkjs web-apps; do
 		[ -f "$p" ] || continue
 		found=1
 		echo "applying $p"
-		patch -d "$comp" -p1 --forward --batch --input="$p"
+		# patch -d changes directory before it opens --input, so a
+		# relative path is looked up inside the component.
+		patch -d "$comp" -p1 --forward --batch --input="$(pwd)/$p"
 	done
 	if [ -z "$found" ]; then
 		echo "no patches for $comp" >&2
