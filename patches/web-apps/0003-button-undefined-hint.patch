@@ -1,0 +1,15 @@
+diff --git a/apps/common/main/lib/component/Button.js b/apps/common/main/lib/component/Button.js
+--- a/apps/common/main/lib/component/Button.js
++++ b/apps/common/main/lib/component/Button.js
+@@ -921,6 +921,11 @@
+         },
+ 
+         updateHint: function(hint, isHtml) {
++            // A missing translation leaves hint undefined. hint[0] then throws,
++            // and after the document has loaded the desktop shell treats any
++            // unhandled exception as EditingError and switches to view mode.
++            if (hint == null)
++                hint = '';
+             this.options.hint = hint;
+             this.hint = hint;
+             if (!this.rendered) return;

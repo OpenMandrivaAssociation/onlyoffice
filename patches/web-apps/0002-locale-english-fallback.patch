@@ -1,0 +1,39 @@
+diff --git a/apps/common/locale.js b/apps/common/locale.js
+--- a/apps/common/locale.js
++++ b/apps/common/locale.js
+@@ -137,7 +137,34 @@
+ 
+                     return response.json();
+                 } else {
+-                    l10n = response;
++                    var primary = response || {};
++                    // Incomplete translations omit new UI strings. Those strings
++                    // often have no English default on the view, so the property
++                    // stays undefined. Button.updateHint then throws, and the
++                    // desktop shell turns that into EditingError (view mode).
++                    // Keep this language's strings and fill the gaps from the
++                    // default language.
++                    if (currentLang && defLang && currentLang !== defLang) {
++                        return fetch('locale/' + defLang + '.json').then(function (fb) {
++                            if (!fb.ok)
++                                return primary;
++                            return fb.json().then(function (fallback) {
++                                var merged = {}, k;
++                                if (fallback) {
++                                    for (k in fallback)
++                                        merged[k] = fallback[k];
++                                }
++                                for (k in primary)
++                                    merged[k] = primary[k];
++                                return merged;
++                            }, function () {
++                                return primary;
++                            });
++                        }, function () {
++                            return primary;
++                        });
++                    }
++                    l10n = primary;
+                     /* to break promises chain */
+                     throw new Error('loaded');
+                 }
