@@ -26,7 +26,7 @@
 
 Name:		onlyoffice
 Version:	10.0.0
-Release:	4
+Release:	5
 Summary:	Office suite for documents, spreadsheets and presentations
 Group:		Office
 # Program text is AGPL-3.0-only. Non-code assets are CC-BY-SA-4.0.
