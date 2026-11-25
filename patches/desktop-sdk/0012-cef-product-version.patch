@@ -1,0 +1,17 @@
+diff --git a/ChromiumBasedEditors/lib/src/cefwrapper/client_app.h b/ChromiumBasedEditors/lib/src/cefwrapper/client_app.h
+--- a/ChromiumBasedEditors/lib/src/cefwrapper/client_app.h
++++ b/ChromiumBasedEditors/lib/src/cefwrapper/client_app.h
+@@ -304,7 +304,12 @@
+ 			if (m_manager->GetDebugInfoSupport())
+ 				sAppNavigator += " DebugMode";
+ 
+-			command_line->AppendSwitchWithValue("--product-version", sAppNavigator);
++			// Chromium treats --product-version as print-and-exit, so
++			// CefInitialize never finishes. From CEF 102 the UA token is
++			// --user-agent-product, added below.
++#ifndef CEF_VERSION_ABOVE_102
++			command_line->AppendSwitchWithValue("--product-version", sAppNavigator);
++#endif
+ 
+ #ifdef CEF_VERSION_ABOVE_102
+ 			command_line->AppendSwitchWithValue("--user-agent-product", sAppNavigator);

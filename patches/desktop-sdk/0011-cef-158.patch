@@ -1,0 +1,61 @@
+diff --git a/ChromiumBasedEditors/lib/cef_pri/cef_system.pri b/ChromiumBasedEditors/lib/cef_pri/cef_system.pri
+--- a/ChromiumBasedEditors/lib/cef_pri/cef_system.pri
++++ b/ChromiumBasedEditors/lib/cef_pri/cef_system.pri
+@@ -12,7 +12,8 @@
+     NDEBUG \
+     NO_CSR \
+     CEF_VERSION_155 \
+-    CEF_USE_QT
++    CEF_USE_QT \
++    CEF_TESTS_USE_X11
+ 
+ # int64 / uint32 / uint64 live in src/cef_compat_types.h. Do not -D them:
+ # POLE's "typedef unsigned long long uint64" would become a second uint64_t.
+@@ -34,10 +35,12 @@
+ QMAKE_LFLAGS += "-Wl,-rpath,$$CEF_SRC_PATH/Release"
+ 
+ # cefclient/shared sources that exist in this CEF. The Linux window, dialog
+-# and print pieces are the Qt ones (CEF_USE_QT). GTK, Windows, macOS,
+-# off-screen and cefclient's own main() are left out. extension_util
+-# was removed upstream. shared/browser/resource_util_linux.cc duplicates
+-# GetResourceDir from the cefclient copy. client_app_delegates_common.cc and
++# and print pieces are the Qt ones (CEF_USE_QT). CEF_TESTS_USE_X11 matches
++# cef_config.h (CEF_X11): root_window_qt.cc parents popups on TempWindowX11.
++# GTK, Windows, macOS, off-screen and cefclient's own main() are left out.
++# extension_util was removed upstream. shared/browser/resource_util_linux.cc
++# duplicates GetResourceDir from the cefclient copy.
++# client_app_delegates_common.cc and
+ # client_app_delegates_renderer.cc are provided by OnlyOffice
+ # (client_scheme_wrapper.cpp, client_renderer_wrapper.cpp).
+ CEF_HELPER_SOURCES = \
+diff --git a/ChromiumBasedEditors/lib/src/cefview.cpp b/ChromiumBasedEditors/lib/src/cefview.cpp
+--- a/ChromiumBasedEditors/lib/src/cefview.cpp
++++ b/ChromiumBasedEditors/lib/src/cefview.cpp
+@@ -5230,10 +5230,27 @@
+ 	return false;
+ }
+ 
++// CEF 158 replaced CefKeyboardHandler::OnPreKeyEvent on ClientHandler with
++// CefInputHandler::OnPreKeyboardEvent. The fields this handler reads
++// (type, windows_key_code, modifiers) exist on both event types.
++#if defined(CEF_API_ADDED)
++#if CEF_API_ADDED(15800)
++virtual bool OnPreKeyboardEvent(CefRefPtr<CefBrowser> browser,
++						   const CefKeyboardInputEvent& event,
++						   const CefInputEventContext& context,
++						   bool* is_keyboard_shortcut) OVERRIDE
++#else
++virtual bool OnPreKeyEvent(CefRefPtr<CefBrowser> browser,
++						   const CefKeyEvent& event,
++						   CefEventHandle os_event,
++						   bool* is_keyboard_shortcut) OVERRIDE
++#endif
++#else
+ virtual bool OnPreKeyEvent(CefRefPtr<CefBrowser> browser,
+ 						   const CefKeyEvent& event,
+ 						   CefEventHandle os_event,
+ 						   bool* is_keyboard_shortcut) OVERRIDE
++#endif
+ {
+ 	if (event.type == KEYEVENT_RAWKEYDOWN && m_pParent && m_pParent->GetAppManager() && m_pParent->GetAppManager()->GetEventListener())
+ 	{

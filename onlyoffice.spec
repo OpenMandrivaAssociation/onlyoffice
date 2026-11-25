@@ -26,7 +26,7 @@
 
 Name:		onlyoffice
 Version:	10.0.0
-Release:	5
+Release:	6
 Summary:	Office suite for documents, spreadsheets and presentations
 Group:		Office
 # Program text is AGPL-3.0-only. Non-code assets are CC-BY-SA-4.0.
@@ -637,6 +637,155 @@ for png in desktop-apps/package/common/linux/icons/*.png; do
 	ln -s onlyoffice.png "$icdir/onlyoffice-desktopeditors.png"
 done
 
+# KWin stacks a new XWayland window under the active Wayland window when
+# the X server uptime is past 2^31 ms: the creation timestamp then compares
+# as older than a Wayland window's user time of 0. The helper raises the
+# ONLYOFFICE window once it is on _NET_CLIENT_LIST.
+cc -O2 -o %{buildroot}%{_libdir}/onlyoffice/onlyoffice-activate -x c - -lX11 <<'END_ACTIVATE' || exit 1
+#include <X11/Xatom.h>
+#include <X11/Xlib.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+static int ignore_error(Display *dpy, XErrorEvent *ev)
+{
+	(void)dpy;
+	(void)ev;
+	return 0;
+}
+
+static int is_onlyoffice(const unsigned char *data, unsigned long nitems)
+{
+	const char *p = (const char *)data;
+	const char *end = p + nitems;
+
+	while (p < end) {
+		size_t n = strnlen(p, (size_t)(end - p));
+		if (n == (size_t)(end - p))
+			break;
+		if (strcmp(p, "ONLYOFFICE") == 0 || strcmp(p, "DesktopEditors") == 0)
+			return 1;
+		p += n + 1;
+	}
+	return 0;
+}
+
+static Window find_onlyoffice(Display *dpy, Window root, Atom net_client_list, Atom wm_class)
+{
+	Atom actual_type;
+	int actual_format;
+	unsigned long nitems, bytes_after;
+	unsigned char *data = NULL;
+	Window found = 0;
+
+	if (XGetWindowProperty(dpy, root, net_client_list, 0, 4096, False,
+			XA_WINDOW, &actual_type, &actual_format, &nitems,
+			&bytes_after, &data) != Success || !data)
+		return 0;
+
+	unsigned long *ids = (unsigned long *)data;
+	for (unsigned long i = 0; i < nitems; i++) {
+		Window win = (Window)ids[i];
+		unsigned char *cls = NULL;
+		unsigned long cn = 0;
+
+		if (XGetWindowProperty(dpy, win, wm_class, 0, 128, False,
+				AnyPropertyType, &actual_type, &actual_format, &cn,
+				&bytes_after, &cls) == Success && cls) {
+			if (actual_format == 8 && is_onlyoffice(cls, cn))
+				found = win;
+			XFree(cls);
+		}
+	}
+	XFree(data);
+	return found;
+}
+
+static void request_activate(Display *dpy, Window root, Atom net_active, Window win)
+{
+	XClientMessageEvent ev;
+
+	memset(&ev, 0, sizeof ev);
+	ev.type = ClientMessage;
+	ev.send_event = True;
+	ev.display = dpy;
+	ev.window = win;
+	ev.message_type = net_active;
+	ev.format = 32;
+	XSendEvent(dpy, root, False,
+		SubstructureRedirectMask | SubstructureNotifyMask, (XEvent *)&ev);
+	XMapRaised(dpy, win);
+	XFlush(dpy);
+}
+
+static void watch(pid_t app)
+{
+	Display *dpy;
+	Atom net_client_list, wm_class, net_active;
+	Window root, win;
+	int i;
+
+	if (!app || kill(app, 0) != 0)
+		return;
+	dpy = XOpenDisplay(NULL);
+	if (!dpy)
+		return;
+	XSetErrorHandler(ignore_error);
+	root = DefaultRootWindow(dpy);
+	net_client_list = XInternAtom(dpy, "_NET_CLIENT_LIST", False);
+	wm_class = XInternAtom(dpy, "WM_CLASS", False);
+	net_active = XInternAtom(dpy, "_NET_ACTIVE_WINDOW", False);
+	if (net_client_list == None || wm_class == None || net_active == None) {
+		XCloseDisplay(dpy);
+		return;
+	}
+
+	for (i = 0; i < 300; i++) {
+		if (kill(app, 0) != 0)
+			break;
+		win = find_onlyoffice(dpy, root, net_client_list, wm_class);
+		if (win) {
+			request_activate(dpy, root, net_active, win);
+			break;
+		}
+		usleep(100000);
+	}
+	XCloseDisplay(dpy);
+}
+
+int main(int argc, char **argv)
+{
+	pid_t app, child;
+	int devnull;
+
+	app = argc > 1 ? (pid_t)strtol(argv[1], NULL, 10) : getppid();
+	child = fork();
+	if (child < 0)
+		return 0;
+	if (child > 0)
+		return 0;
+
+	if (setsid() < 0)
+		_exit(0);
+	signal(SIGHUP, SIG_IGN);
+	devnull = open("/dev/null", O_RDWR);
+	if (devnull >= 0) {
+		dup2(devnull, STDIN_FILENO);
+		dup2(devnull, STDOUT_FILENO);
+		dup2(devnull, STDERR_FILENO);
+		if (devnull > STDERR_FILENO)
+			close(devnull);
+	}
+	watch(app);
+	_exit(0);
+}
+END_ACTIVATE
+chmod 755 %{buildroot}%{_libdir}/onlyoffice/onlyoffice-activate
+
 printf '\043!/bin/sh\n' > %{buildroot}%{_bindir}/onlyoffice
 cat >> %{buildroot}%{_bindir}/onlyoffice <<'EOF'
 INSTDIR=%{_libdir}/onlyoffice
@@ -650,6 +799,11 @@ for arg in "$@"; do
 	--ozone-platform*) ozone=1 ;;
 	esac
 done
+# Returns immediately; the child raises the window when it maps.
+# ONLYOFFICE_NO_ACTIVATE skips that for tests.
+if [ -z "${ONLYOFFICE_NO_ACTIVATE:-}" ]; then
+	"$INSTDIR/onlyoffice-activate" "$$"
+fi
 if [ -n "$ozone" ]; then
 	exec "$INSTDIR/DesktopEditors" "$@"
 fi
